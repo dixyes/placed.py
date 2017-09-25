@@ -1,0 +1,437 @@
+<!doctype html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<title>canvas {{ cid }}</title>
+</head>
+<body>
+<!--pre id="data">{{ data }}</pre-->
+<canvas id="can" width="516" height="516" style="width:100%;"></canvas>
+</br>
+<!--a id="tar">-1</a-->
+</br>
+<style>
+.color
+{
+display: inline-block;
+width: 28px;
+height: 28px;
+margin: 1px 4px;
+border-radius: 5px;
+cursor: pointer;
+transform-origin: 50% 50%;}
+.selected {
+transform: scale(1.2);
+}
+</style>
+<div id="cc">
+<div class="color" data="A" style="background-color: #000000;"></div>
+<div class="color" data="B" style="background-color: #ffffff;"></div>
+<div class="color" data="C" style="background-color: #aaaaaa;"></div>
+<div class="color" data="D" style="background-color: #555555;"></div>
+<div class="color" data="E" style="background-color: #fed3c7;"></div>
+<div class="color" data="F" style="background-color: #ffc4ce;"></div>
+<div class="color" data="G" style="background-color: #faac8e;"></div>
+<div class="color" data="H" style="background-color: #ff8b83;"></div>
+<div class="color" data="I" style="background-color: #f44336;"></div>
+<div class="color" data="J" style="background-color: #e91e63;"></div>
+<div class="color" data="K" style="background-color: #e2669e;"></div>
+<div class="color" data="L" style="background-color: #9c27b0;"></div>
+<div class="color" data="M" style="background-color: #673ab7;"></div>
+<div class="color" data="N" style="background-color: #3f51b5;"></div>
+<div class="color" data="O" style="background-color: #004670;"></div>
+<div class="color" data="P" style="background-color: #057197;"></div>
+<div class="color" data="Q" style="background-color: #2196f3;"></div>
+<div class="color" data="R" style="background-color: #00bcd4;"></div>
+<div class="color" data="S" style="background-color: #3be5db;"></div>
+<div class="color" data="T" style="background-color: #97fddc;"></div>
+<div class="color" data="U" style="background-color: #167300;"></div>
+<div class="color" data="V" style="background-color: #37a93c;"></div>
+<div class="color" data="W" style="background-color: #89e642;"></div>
+<div class="color" data="X" style="background-color: #d7ff07;"></div>
+<div class="color" data="Y" style="background-color: #fff6d1;"></div>
+<div class="color" data="Z" style="background-color: #f8cb8c;"></div>
+<div class="color" data="2" style="background-color: #ffeb3b;"></div>
+<div class="color" data="3" style="background-color: #ffc107;"></div>
+<div class="color" data="4" style="background-color: #ff9800;"></div>
+<div class="color" data="5" style="background-color: #ff5722;"></div>
+<div class="color" data="6" style="background-color: #b83f27;"></div>
+<div class="color" data="7" style="background-color: #795548;"></div>
+</div>
+</br>
+<input id="uid" value="709">uid</input>
+<input id="token" value="b4a7f740116c7265d495159faa58aa10bc52b70d60225dfd">token</input>
+<button id="btnpush" onclick="pushC();" disabled="disabled">push</button>
+
+
+
+<script src="//unpkg.com/hi-base32@0.3.0/build/base32.min.js"></script>
+
+<script>
+
+// consts
+
+const color = [
+[0,0,0],
+[255,255,255],
+[170,170,170],
+[85,85,85],
+[254,211,199],
+[255,196,206],
+[250,172,142],
+[255,139,131],
+[244,67,54],
+[233,30,99],
+[226,102,158],
+[156,39,176],
+[103,58,183],
+[63,81,181],
+[0,70,112],
+[5,113,151],
+[33,150,243],
+[0,188,212],
+[59,229,219],
+[151,253,220],
+[22,115,0],
+[55,169,60],
+[137,230,66],
+[215,255,7],
+[255,246,209],
+[248,203,140],
+[255,235,59],
+[255,193,7],
+[255,152,0],
+[255,87,34],
+[184,63,39],
+[121,85,72],
+];
+
+const colordict = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+const Rx = [1,0,-1,0], Ry = [0,-1,0,1];
+
+// utils
+
+function int4be(org){
+    /*
+    *  convert int to big-endian array
+    */
+    return [
+        org>>24,
+        (org>>16)&0xFF,
+        (org>>8)&0xFF,
+        org&0xFF,
+    ]
+}
+
+function parseHexString(str) {
+    /*
+    *  parse hex string into int array like "cafebabe" -> [0xca,0xfa,0xba,0xbe]
+    */
+    var result = [];
+    while (str.length >= 2) {
+        result.push(parseInt(str.substring(0, 2), 16));
+        str = str.substring(2, str.length);
+    }
+
+    return result;
+}
+
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};
+
+function hilbertarrry(l,g){
+    // generate a l level phc array
+    if (g === undefined){
+        g="A";
+    }
+    if (l == 0){
+        var ret = [], x = 0, y = 0, d = 0;
+        //console.log(g)
+        ret.push([x,y]);
+        for (i in g){
+            char = g[i];
+            switch(char){
+                case "F":
+                    x += Rx[d];
+                    y += Ry[d];
+                    ret.push([x,y]);
+                    break;
+                case "+":
+                    d = (d+1) % 4;
+                    break;
+                case "-":
+                    d = (d-1) % 4;
+                    if(d<0)
+                        d+=4;
+            }
+        }
+        return ret;
+    }
+    else{
+        return hilbertarrry(l-1,g.replaceAll("A","-XF+AFA+FX-").replaceAll("B","+AF-BFB-FA+").replaceAll("X","B"));
+    }
+}
+//console.log(JSON.stringify(hilbertarrry(3,"A")))
+
+function scaleImageData(imageData, scale) {
+  // scale imageData to target size
+  var ctx=document.getElementById("can").getContext("2d");
+  var scaled = ctx.createImageData(imageData.width * scale, imageData.height * scale);
+
+  for(var row = 0; row < imageData.height; row++) {
+    for(var col = 0; col < imageData.width; col++) {
+      var sourcePixel = [
+        imageData.data[(row * imageData.width + col) * 4 + 0],
+        imageData.data[(row * imageData.width + col) * 4 + 1],
+        imageData.data[(row * imageData.width + col) * 4 + 2],
+        imageData.data[(row * imageData.width + col) * 4 + 3]
+      ];
+      for(var y = 0; y < scale; y++) {
+        var destRow = row * scale + y;
+        for(var x = 0; x < scale; x++) {
+          var destCol = col * scale + x;
+          for(var i = 0; i < 4; i++) {
+            scaled.data[(destRow * scaled.width + destCol) * 4 + i] =
+              sourcePixel[i];
+          }
+        }
+      }
+    }
+  }
+
+  return scaled;
+}
+
+function xy2n(x,y){
+    // reverse hilbert curve array
+    ret =-1;
+    for (i in harray){
+        if (harray[i][0]==x && harray[i][1]==y){
+            ret = i;
+        }
+    }
+    return ret;
+}
+
+// global vars
+
+window.data = "{{ data }}";
+window.datl = Math.log2(data.length)/2;
+window.can = document.getElementById("can");
+window.harray = hilbertarrry(datl,"A");
+window.cid="{{ cid }}"
+const enc = new TextEncoder("utf-8");
+
+
+// main logic/function
+
+function gen_sed(data,s){
+    // generate hilbert curve indexed bitmap at length s
+    var ctx=can.getContext("2d");
+    var w = 2**datl; // w for width
+    var idata = ctx.createImageData(w,w);
+    //console.log(idata.data.length,w,data.length);
+
+    if (!s || s>data.length){
+        s=data.length;
+    }
+    for (i=0;i<s;i++){
+        //console.log(i)
+        // harray[i][0] and harray[i][1] is x and y, this will convert (x,y) to perline-scan index
+        index = (harray[i][0] + harray[i][1] * w) * 4;
+        //console.log(x,y,index);
+        // get color id
+        id = colordict.indexOf(data[i]);
+        //if(!id == 0)
+            //console.log(id,color[id]);
+        idata.data[index] = color[id][0];
+        idata.data[index+1] = color[id][1];
+        idata.data[index+2] = color[id][2];
+        idata.data[index+3] = 255;
+    }
+    for (i=s;i<data.length;i++){
+        idata.data[index+3] = 0;
+    }
+
+    return idata;
+}
+
+function update_ui(){
+    // update canvas and ui
+    //console.log(sed);
+    ctx = can.getContext("2d")
+    ctx.clearRect(0,0,516,516);
+    img = scaleImageData(sed,512 / (2**datl))
+    ctx.putImageData(img,2,2);
+    //ctx.restore();
+
+    if (window.target){
+        var scale = 512/(2 ** window.datl);
+        //tar = document.getElementById("tar");
+        //tar.innerHTML = window.target;
+        var x= harray[target][0],y= harray[target][1];
+        // re-draw paths
+        ctx.beginPath();
+        ctx.lineWidth=2;
+        ctx.strokeStyle = '#000000';
+        //todo: color preview
+        //if(window.select_rect){
+        //c.clearRect(select_rect[0],select_rect[1],select_rect[2],select_rect[3]);
+        //}
+
+        ctx.rect(x*scale+2,y*scale+2,scale,scale);
+        //window.select_rect = [x*scale,y*scale,scale,scale];
+        // draw a stroke
+        ctx.stroke();
+        if(window.selcolor){
+            document.getElementById("btnpush").removeAttribute("disabled")
+        }
+    }
+
+}
+
+// canvas on click event
+can.onclick = function(e){
+    rect = can.getBoundingClientRect()
+    scale = can.width / rect.width;
+    ox = (e.clientX - rect.left) * scale
+    oy = (e.clientY - rect.top) * scale
+    console.log(ox,oy);
+    x = Math.floor(ox / 512 * (2 ** window.datl));
+    y = Math.floor(oy / 512 * (2 ** window.datl));
+    console.log(x,y);
+    if (x>-1 && x<64 && y>-1 && y<64){
+        window.target = xy2n(x,y);
+    }
+    else{
+        window.target = undefined;
+    }
+    update_ui();
+}
+
+// get all color divs
+cdivs = document.getElementsByClassName("color")
+// binding color selector on click event
+for(c in cdivs){
+    cdivs[c].onclick = function (e){
+        //console.log(e.target.getAttribute("data"))
+        // clean other state
+        for (i in cdivs){cdivs[i].className="color"}
+        // set selected
+        e.target.className="color selected"
+        window.selcolor = e.target.getAttribute("data")
+        update_ui()
+    }
+}
+
+function refresh(){
+    ta = new Uint8Array(enc.encode(cid).length+6);
+    ta.set(int4be(cid.length).concat([0xca,0xfe]));
+    ta.set(enc.encode(cid),6);
+    //console.log(ta);
+    ws.send(ta);
+}
+
+// slow draw
+var it = 1
+window.intn = setInterval(function(){
+    //console.log(it)
+    if (it >=data.length){
+        clearInterval(window.intn)
+        setTimeout(refresh(),50);
+    }
+    //console.log(it)
+    it+=data.length/8/8;
+    window.sed = gen_sed(data,it);
+    update_ui();
+},30)
+
+// create websocket
+window.ws = new WebSocket('ws://'+window.location.host+'/ws');
+
+// ws on messsage event: when receive a "ok"(0x6f6b) pkt, refresh canvas(store new sed to window)
+ws.onmessage = function(event) {
+    //console.log(event.data);
+    fr =new FileReader();
+    fr.onload = function(e){
+        //console.log(fr.result);
+        ok =new Uint8Array(fr.result,4,2);
+        // PktType.OK == b"ok"
+        // PktType.ERROR == b"no"
+        ba =new Uint8Array(fr.result,6);
+        // recieved new data
+
+        //console.log(ok);
+        if (ok[0] == 0x6f && ok[1] == 0x6b){
+            // when pkttype == b"ok", refresh global vars
+            //console.log(base32.encode(ba))
+            window.data = base32.encode(ba);
+            window.datl = Math.log2(data.length)/2;
+            // generate sed, then refresh ui
+            window.sed = gen_sed(data);
+            update_ui();
+        }else{
+            // yet no other pkt, so just log error
+            dec = new TextDecoder("utf-8");
+            console.log(dec.decode(ba));
+        }
+    }
+    fr.readAsArrayBuffer(event.data);
+};
+
+ws.onclose = function(event) {
+alert("on boom");
+}
+
+// refresh per 20k millsecond (20s) (deprecated)
+
+//lenb = int4be(cid.length)
+//cidb = enc.encode(cid);
+
+/*setInterval(function(){
+    ta = new Uint8Array(cidb.length+6);
+    ta.set(lenb.concat([0xca,0xfe]));
+    ta.set(cidb,6);
+    //console.log(ta);
+    ws.send(ta);
+},
+20000
+)*/
+
+window.pushColor =function(c,n,hard_token){
+    // push color c at n with custed token hard_token to server
+    // 0xbabe is PktType.PUT
+    var cidb = enc.encode(cid),a = int4be(33+cidb.length).concat([0xba,0xbe]).concat(int4be(n));
+    a.push(c.charCodeAt(0))
+    a = a.concat(hard_token)
+
+    var ua = new Uint8Array(cidb.length+39)
+    ua.set(a)
+    ua.set(cidb,39)
+    //console.log(ua)
+    ws.send(ua)
+}
+
+//pushColor("a",1,[0,0,2,197,0xb4, 0xa7, 0xf7, 0x40, 0x11, 0x6c, 0x72, 0x65, 0xd4, 0x95, 0x15, 0x9f, 0xaa, 0x58, 0xaa, 0x10, 0xbc, 0x52, 0xb7, 0x0d, 0x60, 0x22, 0x5d, 0xfd])
+
+function pushC(){
+    // pack of pushColor
+    //console.log(window.selcolor,window.target)
+    var a = int4be(parseInt(document.getElementById('uid').value)).concat(parseHexString(document.getElementById('token').value))
+    //console.log(a)
+    pushColor(window.selcolor,window.target,a)
+}
+
+
+</script>
+
+<!--script src="https://cdn.bootcss.com/require.js/2.3.5/require.min.js"></script-->
+
+
+</body>
+</html>
