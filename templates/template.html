@@ -5,28 +5,65 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="chrome=1">
 <title>canvas {{ cid }}</title>
+<style>
+
+.colors{
+width: 540px;
+position: absolute;
+margin: auto;
+left: 0;
+right: 0;
+overflow: auto;
+}
+.color{
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    margin: 1px 1px;
+    border-radius: 3px;
+    cursor: pointer;
+    transform-origin: 50% 50%;
+    }
+.color-button{
+    display: inline-block;
+    width: 53.5px;
+    height: 24px;
+    margin: 1px 1px;
+    border-radius: 3px;
+    cursor: pointer;
+    transform-origin: 50% 50%;
+    //border-style: solid;
+    //border-width: 2px;
+}
+.color-button.disabled{
+    background-color: #bbb;
+}
+.selected {
+transform: scale(1.2);
+}
+@media (max-width: 700px) {
+    .colors{
+        width: 360px;
+    }
+
+}
+@media (max-width: 300px) {
+    .colors{
+        width: 320px;
+    }
+}
+
+
+</style>
 </head>
 <body>
 <!--pre id="data">{{ data }}</pre-->
 <canvas id="can" width="516" height="516" style="width:100%;"></canvas>
 </br>
-<!--a id="tar">-1</a-->
-</br>
-<style>
-.color
-{
-display: inline-block;
-width: 28px;
-height: 28px;
-margin: 1px 4px;
-border-radius: 5px;
-cursor: pointer;
-transform-origin: 50% 50%;}
-.selected {
-transform: scale(1.2);
-}
-</style>
-<div id="cc">
+<!--a id="tar">-1</a>
+</br-->
+
+<div class="colors">
 <div class="color" data="A" style="background-color: #000000;"></div>
 <div class="color" data="B" style="background-color: #ffffff;"></div>
 <div class="color" data="C" style="background-color: #aaaaaa;"></div>
@@ -59,11 +96,13 @@ transform: scale(1.2);
 <div class="color" data="5" style="background-color: #ff5722;"></div>
 <div class="color" data="6" style="background-color: #b83f27;"></div>
 <div class="color" data="7" style="background-color: #795548;"></div>
+<div id="colorp" class="color-button" style="background-color: #bbb;"></div>
+<div id="pushb" class="color-button disabled" onclick="pushC();" style="background-color: #bbb;"></div>
 </div>
 </br>
-<input id="uid" value="709">uid</input>
-<input id="token" value="b4a7f740116c7265d495159faa58aa10bc52b70d60225dfd">token</input>
-<button id="btnpush" onclick="pushC();" disabled="disabled">push</button>
+<!--input id="uid" value="709">uid</input>
+<input id="token" value="">token</input>
+<button id="btnpush" onclick="pushC();" disabled="disabled">push</button-->
 
 
 
@@ -288,9 +327,12 @@ function update_ui(){
         //window.select_rect = [x*scale,y*scale,scale,scale];
         // draw a stroke
         ctx.stroke();
-        if(window.selcolor){
-            document.getElementById("btnpush").removeAttribute("disabled")
-        }
+        c = color[colordict.indexOf(data[window.target])]
+        document.getElementById("colorp").style["background-color"] = 'rgb('+c[0].toString()+', '+c[1].toString()+', '+c[2].toString()+')';
+    }
+    if(window.selcolor){
+        c = color[colordict.indexOf(window.selcolor)]
+        document.getElementById("pushb").style["background-color"] = 'rgb('+c[0].toString()+', '+c[1].toString()+', '+c[2].toString()+')';
     }
 
 }
@@ -301,10 +343,10 @@ can.onclick = function(e){
     scale = can.width / rect.width;
     ox = (e.clientX - rect.left) * scale
     oy = (e.clientY - rect.top) * scale
-    console.log(ox,oy);
+    //console.log(ox,oy);
     x = Math.floor(ox / 512 * (2 ** window.datl));
     y = Math.floor(oy / 512 * (2 ** window.datl));
-    console.log(x,y);
+    //console.log(x,y);
     if (x>-1 && x<64 && y>-1 && y<64){
         window.target = xy2n(x,y);
     }
@@ -422,7 +464,8 @@ window.pushColor =function(c,n,hard_token){
 function pushC(){
     // pack of pushColor
     //console.log(window.selcolor,window.target)
-    var a = int4be(parseInt(document.getElementById('uid').value)).concat(parseHexString(document.getElementById('token').value))
+    // todo: use custed!
+    var a = int4be(709).concat(parseHexString("b4a7f740116c7265d495159faa58aa10bc52b70d60225dfd"))
     //console.log(a)
     pushColor(window.selcolor,window.target,a)
 }

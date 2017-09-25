@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # simple Python LACE Daemon (fake
 
 from flask import Flask, request, abort, current_app, render_template
 from enum import Enum
-import json,redis,pyotp,werkzeug.exceptions,struct,binascii
+import json,redis,pyotp,werkzeug.exceptions,struct,binascii,os,sys
 import base64 as b64
 from hilbertcanvas import HilbertCanvas
 from flask_sockets import Sockets
@@ -14,6 +14,9 @@ from custedauth import ext_auth
 
 # colding time
 cdt = 10
+
+redis_port = int(os.environ.get('DB_PORT_6379_TCP_PORT',6379))
+redis_host = os.environ.get('DB_PORT_6379_TCP_ADDR',"localhost")
 
 app = Flask(__name__)
 app.debug = True
@@ -89,7 +92,7 @@ def bad_auth(e):
 def pcanvas(cid):
     credis = getattr(current_app, '_credis', None)
     if credis is None:
-        credis = current_app._credis = redis.StrictRedis(host='localhost', port=6379, db=0)
+        credis = current_app._credis = redis.StrictRedis(host=redis_host, port=redis_port, db=0)
     canvas = getattr(current_app, '_canvas', None)
     if canvas is None:
         #first load: read from redis
@@ -222,7 +225,7 @@ def auth(uid,token):
 
     aredis = getattr(current_app, '_aredis', None)
     if not aredis:
-        aredis = current_app._aredis = redis.StrictRedis(host='localhost', port=6379, db=1)
+        aredis = current_app._aredis = redis.StrictRedis(host=redis_host, port=redis_port, db=1)
 
     hard_token = struct.pack(">I",uid)+token
     # hard_token : 4byte uid | 20byte tokenl | 4byte tokens
@@ -240,27 +243,28 @@ def auth(uid,token):
             return False
 
 def colddown(uid):
-    return True
+    #return True
     dredis = getattr(current_app, '_dredis', None)
     if not dredis:
-        dredis = current_app._dredis = redis.StrictRedis(host='localhost', port=6379, db=2)
-    ok = dredis.get(uid) or 0
+        dredis = current_app._dredis = redis.StrictRedis(host=redis_host, port=redis_port, db=2)
+
+    ok = int(dredis.get(uid) or "0") or 0
     if ok == 0 :
-        dredis.set(uid,0)
+        dredis.set(uid,"1")
         dredis.expire(uid,cdt)
         return True
     elif ok < 10:
-        dredis.set(uid,ok+1)
+        dredis.set(uid,"%d" % (ok+1))
         dredis.expire(uid,cdt)
         return False
     else :
-        dredis.expire(uid,cdt*10)
+        dredis.expire(uid,"%d" % (cdt*10))
         return False
 
 def setn(cid,n,c):
     credis = getattr(current_app, '_credis', None)
     if credis is None:
-        credis = current_app._credis = redis.StrictRedis(host='localhost', port=6379, db=0)
+        credis = current_app._credis = redis.StrictRedis(host=redis_host, port=redis_port, db=0)
     canvas = getattr(current_app, '_canvas', None)
     if canvas is None:
         #first load: read from redis
@@ -328,13 +332,17 @@ def websock(ws):
                 wslist[cid].append(ws)
 
                 uid = struct.unpack(">I",hard_token[0:4])[0]
-                if auth(uid,hard_token[4:]) and colddown(uid):
-                    t.setn(n,chr(c))
-                    notify_all(cid)
-                    ws.send(pack_msg(PackType.OK,b64.b32decode(t.data)))
+                if auth(uid,hard_token[4:]):
+                    if colddown(uid):
+                        t.setn(n,chr(c))
+                        notify_all(cid)
+                        ws.send(pack_msg(PackType.OK,b64.b32decode(t.data)))
+                    else:
+                        #print(auth(uid,hard_token[4:]),colddown(uid))
+                        ws.send(pack_msg(PackType.ERROR,b"colding down"))
                 else:
-                    print(auth(uid,hard_token[4:]),colddown(uid))
-                    ws.send(pack_msg(PackType.ERROR,b"not auth or colding down"))
+                    #print(auth(uid,hard_token[4:]),colddown(uid))
+                    ws.send(pack_msg(PackType.ERROR,b"not auth"))
             elif head == PackType.ERROR :
                 ws.send(pack_msg(PackType.ERROR,b"bad request"))
                 ws.close()
@@ -344,7 +352,12 @@ def websock(ws):
                 ws.close()
             raise(e)
 if __name__ == "__main__":
-    from gevent import pywsgi
-    from geventwebsocket.handler import WebSocketHandler
-    server = pywsgi.WSGIServer(('0.0.0.0', 5000), app, handler_class=WebSocketHandler)
-    server.serve_forever()
+    if sys.argv[1] == "run":
+        from gevent import pywsgi
+        from geventwebsocket.handler import WebSocketHandler
+        server = pywsgi.WSGIServer(('0.0.0.0', 5000), app, handler_class=WebSocketHandler)
+        server.serve_forever()
+    elif sys.argv[1] == "dumph":
+        print("todo")
+    else:
+        os.system(" ".join(sys.argv[1:]))
