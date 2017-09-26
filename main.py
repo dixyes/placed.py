@@ -258,8 +258,22 @@ def colddown(uid):
         dredis.expire(uid,cdt)
         return False
     else :
-        dredis.expire(uid,"%d" % (cdt*10))
+        dredis.set(uid,"%d" % (ok+1))
+        dredis.expire(uid,cdt*10)
         return False
+
+def colddown_get(uid):
+    if not uid:
+        return 0
+    dredis = getattr(current_app, '_dredis', None)
+    if not dredis:
+        dredis = current_app._dredis = redis.StrictRedis(host=redis_host, port=redis_port, db=2)
+
+    recorded = dredis.get(uid)
+    if not recorded or dredis.ttl(uid) == -2:
+        return 0
+    else:
+        return dredis.ttl(uid)
 
 def setn(cid,n,c):
     credis = getattr(current_app, '_credis', None)
@@ -283,10 +297,21 @@ def notify_all(t):
     wslist = getattr(current_app, '_wslist', None)
     can = getattr(current_app, '_canvas', None)
     for ws in wslist[t]:
-        if not ws.closed:
-            ws.send(pack_msg(PackType.OK,b64.b32decode(can[t].data)))
+        if not ws[0].closed:
+            ws[0].send(pack_msg(PackType.OK,b64.b32decode(can[t].data)))
         else:
             del ws
+
+def inform_all():
+    wslist = getattr(current_app, '_wslist', None)
+    can = getattr(current_app, '_canvas', None)
+    for t in wslist.keys():
+        online = len(wslist[t])
+        for ws in wslist[t]:
+            if not ws[0].closed:
+                ws[0].send(pack_msg(PackType.INFO,struct.pack(">I",online)+struct.pack(">I",colddown_get(ws[1]))))
+            else:
+                del ws
 
 @sockets.route('/ws')
 def websock(ws):
@@ -296,6 +321,10 @@ def websock(ws):
     while not ws.closed:
         try:
             message = bytes(ws.receive())
+        except:
+            if not ws.closed:
+                ws.close()
+        try:
             head, body = unpack_msg(message)
             if head == PackType.REFRESH: # refresh data
                 can = getattr(current_app, '_canvas', None)
@@ -308,8 +337,9 @@ def websock(ws):
                 if not wslist.get(cid):
                     wslist[cid] = []
 
-                wslist[cid].append(ws)
+                wslist[cid].append((ws,None))
                 ws.send(pack_msg(PackType.OK,b64.b32decode(t.data)))
+                ws.send(pack_msg(PackType.INFO,struct.pack(">I",len(wslist[cid]))+struct.pack(">I",colddown_get(None))))
             elif head == PackType.PUT :
                 # 4byte size | 2byte pkttype | 4byte n | byte color | hard_token 28bytes | xbytes cid
                 # 0            4               6         10           11                   39
@@ -329,9 +359,9 @@ def websock(ws):
                 if not wslist.get(cid):
                     wslist[cid] = []
 
-                wslist[cid].append(ws)
-
                 uid = struct.unpack(">I",hard_token[0:4])[0]
+                wslist[cid].append((ws,uid))
+
                 if auth(uid,hard_token[4:]):
                     if colddown(uid):
                         t.setn(n,chr(c))
@@ -340,6 +370,7 @@ def websock(ws):
                     else:
                         #print(auth(uid,hard_token[4:]),colddown(uid))
                         ws.send(pack_msg(PackType.ERROR,b"colding down"))
+                        ws.send(pack_msg(PackType.INFO,struct.pack(">I",len(wslist[cid]))+struct.pack(">I",colddown_get(uid))))
                 else:
                     #print(auth(uid,hard_token[4:]),colddown(uid))
                     ws.send(pack_msg(PackType.ERROR,b"not auth"))
@@ -350,7 +381,8 @@ def websock(ws):
             if not ws.closed:
                 ws.send(pack_msg(PackType.ERROR,b"int err"))
                 ws.close()
-            raise(e)
+            raise e
+
 if __name__ == "__main__":
     if sys.argv[1] == "run":
         from gevent import pywsgi
