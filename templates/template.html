@@ -57,7 +57,7 @@ padding-top: 7px;
 }
 .color-button.disabled{
     background-color: #bbb;
-    cursor: none;
+    xcursor: none;
 }
 .selected {
 transform: scale(1.2);
@@ -367,12 +367,17 @@ function draw_n(c,n,m){
         m=1;
     }
     var i=0;
-    ctx.beginPath();
-    for(i=0;i<m;i++)
+
+    for(i=0;i<m;i++){
+        ctx.beginPath();
         ctx.rect(harray[n*m+i][0]*scaled+2,harray[n*m+i][1]*scaled+2,scaled,scaled);
+        ctx.fillStyle = colorhex[colordict.indexOf(data[n*m+i])];
+        ctx.fill()
+    }
+
     //console.log(i)
-    ctx.fillStyle = colorhex[colordict.indexOf(c)];
-    ctx.fill();
+
+    //ctx.fill();
 }
 
 function gen_sed(){

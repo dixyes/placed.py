@@ -51,7 +51,7 @@ def hild(l:int,g="A",d=0):
 
 class HilbertCanvas():
     def __init__(self,level = 1,data = None):
-        print(data,level)
+        #print(data,level)
         if not data:
             self.level = level
             self._data = [ color_dict[0] for i in range(4**self.level)]

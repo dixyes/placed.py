@@ -3,6 +3,7 @@
 # simple Python LACE Daemon (fake
 
 from flask import Flask, request, abort, current_app, render_template
+from celery import Celery
 from enum import Enum
 import json,redis,pyotp,werkzeug.exceptions,struct,binascii,os,sys
 import base64 as b64
@@ -263,7 +264,7 @@ def colddown(uid):
         return False
 
 def colddown_get(uid):
-    if not uid:
+    if not uid or uid == -1:
         return 0
     dredis = getattr(current_app, '_dredis', None)
     if not dredis:
@@ -296,28 +297,42 @@ def setn(cid,n,c):
 def notify_all(t):
     wslist = getattr(current_app, '_wslist', None)
     can = getattr(current_app, '_canvas', None)
-    for ws in wslist[t]:
-        if not ws[0].closed:
-            ws[0].send(pack_msg(PackType.OK,b64.b32decode(can[t].data)))
+    for conn in wslist[t]:
+        if not conn.ws.closed:
+            conn.ws.send(pack_msg(PackType.OK,b64.b32decode(can[t].data)))
         else:
-            del ws
+            wslist[t].remove(conn)
 
 def inform_all():
     wslist = getattr(current_app, '_wslist', None)
     can = getattr(current_app, '_canvas', None)
     for t in wslist.keys():
+        for conn in wslist[t]:
+            if conn.ws.closed:
+                wslist[t].remove(conn)
+
+        #print(wslist[t])
         online = len(wslist[t])
-        for ws in wslist[t]:
-            if not ws[0].closed:
-                ws[0].send(pack_msg(PackType.INFO,struct.pack(">I",online)+struct.pack(">I",colddown_get(ws[1]))))
+        for conn in wslist[t]:
+            if not conn.ws.closed:
+                conn.ws.send(pack_msg(PackType.INFO,struct.pack(">I",online)+struct.pack(">I",colddown_get(conn.uid))))
             else:
-                del ws
+                wslist[t].remove(conn)
+
+class WebSockConn():
+    def __init__(self,ws,uid=-1):
+        self.ws = ws
+        self.uid = uid
+    def __repr__(self):
+        return "<wsconn with %s, uid %d>" % (repr(ws),uid)
+    __str__ = __repr__
 
 @sockets.route('/ws')
 def websock(ws):
     wslist = getattr(current_app, '_wslist', None)
     if wslist is None:
         wslist = current_app._wslist = {}
+    conn = WebSockConn(ws)
     while not ws.closed:
         try:
             message = bytes(ws.receive())
@@ -337,9 +352,10 @@ def websock(ws):
                 if not wslist.get(cid):
                     wslist[cid] = []
 
-                wslist[cid].append((ws,None))
+                if not conn in wslist[cid]:
+                    wslist[cid].append(conn)
                 ws.send(pack_msg(PackType.OK,b64.b32decode(t.data)))
-                ws.send(pack_msg(PackType.INFO,struct.pack(">I",len(wslist[cid]))+struct.pack(">I",colddown_get(None))))
+                ws.send(pack_msg(PackType.INFO,struct.pack(">I",len(wslist[cid]))+struct.pack(">I",colddown_get(conn.uid))))
             elif head == PackType.PUT :
                 # 4byte size | 2byte pkttype | 4byte n | byte color | hard_token 28bytes | xbytes cid
                 # 0            4               6         10           11                   39
@@ -359,8 +375,9 @@ def websock(ws):
                 if not wslist.get(cid):
                     wslist[cid] = []
 
-                uid = struct.unpack(">I",hard_token[0:4])[0]
-                wslist[cid].append((ws,uid))
+                uid = conn.uid = struct.unpack(">I",hard_token[0:4])[0]
+                if not conn in wslist[cid]:
+                    wslist[cid].append(conn)
 
                 if auth(uid,hard_token[4:]):
                     if colddown(uid):
@@ -383,12 +400,53 @@ def websock(ws):
                 ws.close()
             raise e
 
+def background():
+    import gevent
+
+    with app.app_context():
+        #print(current_app)
+
+        wslist = getattr(current_app, '_wslist', None)
+        if wslist is None:
+            wslist = current_app._wslist = {}
+
+        credis = getattr(current_app, '_credis', None)
+        if credis is None:
+            credis = current_app._credis = redis.StrictRedis(host=redis_host, port=redis_port, db=0)
+
+        aredis = getattr(current_app, '_aredis', None)
+        if not aredis:
+            aredis = current_app._aredis = redis.StrictRedis(host=redis_host, port=redis_port, db=1)
+
+        dredis = getattr(current_app, '_dredis', None)
+        if not dredis:
+            dredis = current_app._dredis = redis.StrictRedis(host=redis_host, port=redis_port, db=2)
+
+        canvas = getattr(current_app, '_canvas', None)
+        if canvas is None:
+            #first load: read from redis
+            canvas = current_app._canvas = {}
+            ks = credis.keys("*")
+            for k in ks:
+                #print("got",k,credis.get(k))
+                canvas[k.decode("utf8")] = HilbertCanvas(0,credis.get(k).decode("ascii"))
+        while True:
+            inform_all()
+            for cid in canvas.keys():
+                credis.set(cid, canvas[cid].data)
+            gevent.sleep(5)
+
 if __name__ == "__main__":
     if sys.argv[1] == "run":
-        from gevent import pywsgi
+        import gevent
         from geventwebsocket.handler import WebSocketHandler
-        server = pywsgi.WSGIServer(('0.0.0.0', 5000), app, handler_class=WebSocketHandler)
-        server.serve_forever()
+        server = gevent.pywsgi.WSGIServer(('0.0.0.0', 5000), app, handler_class=WebSocketHandler)
+        svr = gevent.spawn(server.start)
+        bgt = gevent.spawn(background)
+        try:
+            gevent.joinall([svr, bgt])
+        except KeyboardInterrupt:
+            print("Exiting")
     elif sys.argv[1] == "dumph":
         print("todo")
     else:
