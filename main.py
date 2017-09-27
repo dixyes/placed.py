@@ -3,7 +3,6 @@
 # simple Python LACE Daemon (fake
 
 from flask import Flask, request, abort, current_app, render_template
-from celery import Celery
 from enum import Enum
 import json,redis,pyotp,werkzeug.exceptions,struct,binascii,os,sys
 import base64 as b64
