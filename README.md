@@ -17,9 +17,15 @@ using hi-base32 to make demo page
 
 ## prepare
 
+### install requirements
+
     pip install -r requirements.txt
     echo (build your redis, then)
     /path/to/redis-server
+
+### create your extern auth
+
+implement ext_auth(uid:int, token:bytes(24)):bool at externauth.py like externauth.py.example
 
 ## run
 
