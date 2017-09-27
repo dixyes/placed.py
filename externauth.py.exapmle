@@ -1,0 +1,17 @@
+
+import urllib.request,urllib.error,binascii
+
+_SOME_URL = 'http://some.site/auth'
+
+def ext_auth(uid,token):
+    cookie = "user=%dtoken=%s" %(uid,binascii.hexlify(token).decode())
+    print(cookie)
+    q = urllib.request.Request(_SOME_URL,headers = {"Cookie":cookie})
+    try:
+        r = urllib.request.urlopen(q)
+    except :
+        return False
+    if r.getcode() == 200:
+        return True
+    else:
+        return False

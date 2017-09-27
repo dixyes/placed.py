@@ -11,7 +11,7 @@ from hilbertcanvas import HilbertCanvas
 from flask_sockets import Sockets
 
 # use your ext_auth
-from custedauth import ext_auth
+from externauth import ext_auth
 
 # colding time
 cdt = 10
@@ -232,13 +232,13 @@ def auth(uid,token):
     # hard_token : 4byte uid | 20byte tokenl | 4byte tokens
     ok = aredis.get(hard_token)
     if ok :
-        print("aredis cached token",ok)
+        #print("aredis cached token",ok)
         return True
     else:
-        print("no token, regen")
+        #print("no token, regen")
         if ext_auth(uid,token):
-            aredis.set(hard_token,True)
-            aredis.expire(hard_token,600)
+            aredis.set(hard_token,True,ex=600)
+            #aredis.expire(hard_token,600)
             return True
         else:
             return False
@@ -250,30 +250,35 @@ def colddown(uid):
         dredis = current_app._dredis = redis.StrictRedis(host=redis_host, port=redis_port, db=2)
 
     ok = int(dredis.get(uid) or "0") or 0
+    #print("using expire"+str(uid))
     if ok == 0 :
-        dredis.set(uid,"1")
-        dredis.expire(uid,cdt)
+        dredis.set(uid,"1",ex=cdt)
+        #dredis.expire(uid,cdt)
         return True
     elif ok < 10:
-        dredis.set(uid,"%d" % (ok+1))
-        dredis.expire(uid,cdt)
+        dredis.set(uid,"%d" % (ok+1),ex=cdt)
+        #dredis.expire(uid,cdt)
         return False
     else :
-        dredis.set(uid,"%d" % (ok+1))
-        dredis.expire(uid,cdt*10)
+        dredis.set(uid,"%d" % (ok+1),ex=cdt)
+        #dredis.expire(uid,cdt*10)
         return False
 
 def colddown_get(uid):
+    #print("getting uid "+str(uid))
     if not uid or uid == -1:
         return 0
     dredis = getattr(current_app, '_dredis', None)
     if not dredis:
         dredis = current_app._dredis = redis.StrictRedis(host=redis_host, port=redis_port, db=2)
 
+    #print("res0:"+str(dredis.ttl(uid)))
     recorded = dredis.get(uid)
+    #print("res1:"+str(dredis.ttl(uid)))
     if not recorded or dredis.ttl(uid) == -2:
         return 0
     else:
+        #print("res:"+str(dredis.ttl(uid)))
         return dredis.ttl(uid)
 
 def setn(cid,n,c):
@@ -336,9 +341,11 @@ def websock(ws):
     while not ws.closed:
         try:
             message = bytes(ws.receive())
+            #print(message)
         except:
             if not ws.closed:
                 ws.close()
+            break
         try:
             head, body = unpack_msg(message)
             if head == PackType.REFRESH: # refresh data

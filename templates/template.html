@@ -248,9 +248,10 @@ function int4be(org){
 
 function be42int(org){
     /*
-    *  convert int to big-endian array
+    *  convert big-endian array to int
     */
-    return org[0]<<24+org[1]<<16+org[2]<<8+org[3];
+    //console.log(org[0],org[2],org[3])
+    return (org[0]<<24)+(org[1]<<16)+(org[2]<<8)+org[3];
 }
 
 function parseHexString(str) {
@@ -372,7 +373,7 @@ function draw_n(c,n,m){
         ctx.beginPath();
         ctx.rect(harray[n*m+i][0]*scaled+2,harray[n*m+i][1]*scaled+2,scaled,scaled);
         ctx.fillStyle = colorhex[colordict.indexOf(data[n*m+i])];
-        ctx.fill()
+        ctx.fill();
     }
 
     //console.log(i)
@@ -543,11 +544,11 @@ ws.onmessage = function(event) {
         }else if(ok[0] == 0xbe && ok[1] == 0xef){
             window.online = be42int(ba.slice(0,4));
             window.cd = be42int(ba.slice(4,8))
-            console.log(ba,be42int(ba.slice(0,4)),be42int(ba.slice(4,8)));
+            console.log(be42int(ba.slice(0,4))+" people online,"+be42int(ba.slice(4,8))+" seconds to cold down");
         }else{
             // yet no other pkt, so just log error
             dec = new TextDecoder("utf-8");
-            console.log(dec.decode(ba));
+            console.log(fr.result,dec.decode(ba));
         }
     }
     fr.readAsArrayBuffer(event.data);

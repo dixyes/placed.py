@@ -104,4 +104,4 @@ venv.bak/
 .mypy_cache/
 
 # auth impl
-custedauth.py
+externauth.py
